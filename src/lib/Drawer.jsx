@@ -1,6 +1,6 @@
 import React, { Component } from 'react'
 import PropTypes from 'prop-types'
-import { draw } from './utils'
+import { draw, debounce, resize, applyStroke } from './utils'
 
 class Drawer extends Component {
   static propTypes = {
@@ -36,6 +36,9 @@ class Drawer extends Component {
     this.tempElement = React.createRef()
 
     this.draw = draw.bind(this)
+    this.debounce = debounce.bind(this)
+    this.resize = resize.bind(this)
+    this.applyStroke = applyStroke.bind(this)
   }
 
   get width() {
@@ -58,8 +61,8 @@ class Drawer extends Component {
     this.context.imageSmoothingEnabled = false
     this.tempContext.imageSmoothingEnabled = false
 
-    this.onResize()
-    window.addEventListener('resize', this.resize)
+    this.resize()
+    window.addEventListener('resize', this.debounceResize)
   }
 
   shouldComponentUpdate() {
@@ -67,74 +70,10 @@ class Drawer extends Component {
   }
 
   componentWillUnmount() {
-    window.removeEventListener(this.resize)
+    window.removeEventListener(this.debounceResize)
   }
 
-  debounce = (func, wait) => {
-    let timeout
-    return () => {
-      const later = () => {
-        timeout = null
-        func.apply()
-      }
-      clearTimeout(timeout)
-      timeout = setTimeout(later, wait)
-    }
-  }
-
-  onResize = () => {
-    const { clientWidth, clientHeight } = this.container.current
-
-    const [w, h] = this.props.ratio.match(/\d+/g)
-
-    const ratio = Number(h) / Number(w)
-
-    let height = Math.min(clientWidth * ratio, clientHeight)
-    let width = height === clientHeight ? height * (Number(w) / Number(h)) : clientWidth
-
-    width *= this.pixelRatio
-    height *= this.pixelRatio
-
-    this.context.imageSmoothingEnabled = false
-    this.tempContext.imageSmoothingEnabled = false
-
-    this.tempElement.current.height = height
-    this.tempElement.current.width = width
-
-    this.tempContext.drawImage(this.context.canvas, 0, 0, width, height)
-
-    this.element.current.height = height
-    this.element.current.width = width
-
-    const _w = `${width / this.pixelRatio}px`
-    const _h = `${height / this.pixelRatio}px`
-
-    this.tempElement.current.style.width = _w
-    this.tempElement.current.style.height = _h
-
-    this.element.current.style.width = _w
-    this.element.current.style.height = _h
-
-    this.context.drawImage(this.tempContext.canvas, 0, 0)
-    this.tempContext.clearRect(0, 0, this.tempElement.current.width, this.tempElement.current.height)
-  }
-
-  resize = this.debounce(this.onResize, 100)
-
-  strokeSettings = () => {
-    this.tempContext.lineJoin = 'round'
-    this.tempContext.lineCap = 'round'
-    this.tempContext.strokeStyle = this.props.color
-    this.tempContext.fillStyle = this.props.color
-    this.tempContext.lineWidth = this.props.size
-  }
-
-  applyStroke = () => {
-    this.points = []
-    this.count = 0
-    this.context.drawImage(this.tempElement.current, 0, 0)
-    this.tempContext.clearRect(0, 0, this.tempElement.current.width, this.tempElement.current.height)
-  }
+  debounceResize = this.debounce(this.resize, 250)
 
   addPoint = (e) => {
     const pageX = e.pageX || e.changedTouches[0].pageX
@@ -184,15 +123,13 @@ class Drawer extends Component {
         this.props.onEnd()
       }
 
-      this.element.current.dispatchEvent(new Event(`${this.props.id}_end`, { bubbles: true }))
+      this.element.current.dispatchEvent(new Event(this.props.id, { bubbles: true }))
 
       this.drawing = false
     }
   }
 
   onTouchStart = (e) => {
-    console.log(e.changedTouches)
-    console.log(e)
     this.drawing = true
     this.tempElement.current.addEventListener('touchmove', this.addPoint, false)
 
@@ -212,16 +149,10 @@ class Drawer extends Component {
         this.props.onEnd()
       }
 
-      this.element.current.dispatchEvent(new Event(`${this.props.id}_end`, { bubbles: true }))
+      this.element.current.dispatchEvent(new Event(this.props.id, { bubbles: true }))
 
       this.drawing = false
     }
-  }
-
-  clear = () => {
-    this.context.clearRect(0, 0, this.tempElement.current.width, this.tempElement.current.height)
-    this.count = 0
-    this.points = []
   }
 
   render() {
@@ -237,7 +168,6 @@ class Drawer extends Component {
         }}
       >
         <canvas
-          style={{ border: '1px solid #000' }}
           ref={this.element}
         />
         <canvas

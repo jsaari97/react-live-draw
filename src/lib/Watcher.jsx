@@ -1,5 +1,6 @@
 import React, { Component } from 'react'
 import PropTypes from 'prop-types'
+import { draw, debounce, resize, applyStroke } from './utils'
 
 class Watcher extends Component {
   static propTypes = {
@@ -32,6 +33,11 @@ class Watcher extends Component {
     this.container = React.createRef()
     this.element = React.createRef()
     this.tempElement = React.createRef()
+
+    this.draw = draw.bind(this)
+    this.debounce = debounce.bind(this)
+    this.resize = resize.bind(this)
+    this.applyStroke = applyStroke.bind(this)
   }
 
   get width() {
@@ -53,10 +59,9 @@ class Watcher extends Component {
     this.context.imageSmoothingEnabled = false
     this.tempContext.imageSmoothingEnabled = false
 
-    this.onResize()
-    window.addEventListener('resize', this.resize)
-    window.addEventListener(this.props.id, this.eventDraw)
-    window.addEventListener(`${this.props.id}_end`, this.applyStroke)
+    this.resize()
+    window.addEventListener('resize', this.debounceResize)
+    window.addEventListener(this.props.id, this.eventHandler)
   }
 
   shouldComponentUpdate() {
@@ -64,120 +69,18 @@ class Watcher extends Component {
   }
 
   componentWillUnmount() {
-    window.removeEventListener(this.resize)
+    window.removeEventListener(this.debounceResize)
   }
 
-  eventDraw = ({ detail }) => {
-    this.points.push(detail.point)
-    this.draw()
-  }
+  debounceResize = this.debounce(this.resize, 250)
 
-  debounce = (func, wait) => {
-    let timeout
-    return () => {
-      const later = () => {
-        timeout = null
-        func.apply()
-      }
-      clearTimeout(timeout)
-      timeout = setTimeout(later, wait)
+  eventHandler = ({ detail }) => {
+    if (detail && detail.point) {
+      this.points.push(detail.point)
+      this.draw()
+    } else {
+      this.applyStroke()
     }
-  }
-
-  onResize = () => {
-    const { clientWidth, clientHeight } = this.container.current
-
-    const [w, h] = this.props.ratio.match(/\d+/g)
-
-    const ratio = Number(h) / Number(w)
-
-    let height = Math.min(clientWidth * ratio, clientHeight)
-    let width = height === clientHeight ? height * (Number(w) / Number(h)) : clientWidth
-
-    width *= this.pixelRatio
-    height *= this.pixelRatio
-
-    this.tempElement.current.height = height
-    this.tempElement.current.width = width
-
-    this.tempContext.drawImage(this.context.canvas, 0, 0, width, height)
-
-    this.element.current.height = height
-    this.element.current.width = width
-
-    const _w = `${width / this.pixelRatio}px`
-    const _h = `${height / this.pixelRatio}px`
-
-    this.tempElement.current.style.width = _w
-    this.tempElement.current.style.height = _h
-
-    this.element.current.style.width = _w
-    this.element.current.style.height = _h
-
-    this.context.drawImage(this.tempContext.canvas, 0, 0)
-    this.tempContext.clearRect(0, 0, this.tempElement.current.width, this.tempElement.current.height)
-  }
-
-  resize = this.debounce(this.onResize, 250)
-
-  strokeSettings = () => {
-    this.tempContext.lineJoin = 'round'
-    this.tempContext.lineCap = 'round'
-    this.tempContext.strokeStyle = this.props.color
-    this.tempContext.fillStyle = this.props.color
-    this.tempContext.lineWidth = this.props.size
-  }
-
-  draw = () => {
-    const { tempContext, points, strokeSettings } = this
-
-    strokeSettings()
-
-    if (points.length < 3) {
-      tempContext.beginPath()
-      tempContext.arc(points[0].x, points[0].y, tempContext.lineWidth / 2, 0, Math.PI * 2, !0)
-      tempContext.fill()
-      tempContext.closePath()
-
-      return
-    }
-
-    tempContext.clearRect(0, 0, this.width, this.height)
-
-    tempContext.beginPath()
-    tempContext.moveTo(points[0].x, points[0].y)
-
-    for (var i = 1; i < points.length - 2; i++) {
-      tempContext.quadraticCurveTo(
-        points[i].x,
-        points[i].y,
-        (points[i].x + points[i + 1].x) / 2,
-        (points[i].y + points[i + 1].y) / 2,
-      )
-    }
-
-    // For the last 2 points
-    tempContext.quadraticCurveTo(
-      points[i].x,
-      points[i].y,
-      points[i + 1].x,
-      points[i + 1].y
-    )
-
-    tempContext.stroke()
-  }
-
-  applyStroke = () => {
-    this.points = []
-    this.count = 0
-    this.context.drawImage(this.tempElement.current, 0, 0)
-    this.tempContext.clearRect(0, 0, this.tempElement.current.width, this.tempElement.current.height)
-  }
-
-  clear = () => {
-    this.context.clearRect(0, 0, this.tempElement.current.width, this.tempElement.current.height)
-    this.count = 0
-    this.points = []
   }
 
   render() {
@@ -193,7 +96,6 @@ class Watcher extends Component {
         }}
       >
         <canvas
-          style={{ border: '1px solid #000' }}
           ref={this.element}
         />
         <canvas
