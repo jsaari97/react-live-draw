@@ -4,6 +4,8 @@ import { draw, debounce, resize, applyStroke } from './utils'
 
 class Watcher extends Component {
   static propTypes = {
+    id: PropTypes.string,
+    eventMethod: PropTypes.func,
     color: PropTypes.string,
     size: PropTypes.number,
     refreshRate: PropTypes.number,
@@ -16,6 +18,8 @@ class Watcher extends Component {
   }
 
   static defaultProps = {
+    id: null,
+    eventMethod: null,
     color: '#333',
     size: 10,
     refreshRate: 2,
@@ -35,9 +39,10 @@ class Watcher extends Component {
     this.tempElement = React.createRef()
 
     this.draw = draw.bind(this)
-    this.debounce = debounce.bind(this)
     this.resize = resize.bind(this)
     this.applyStroke = applyStroke.bind(this)
+
+    this.debounceResize = debounce(this.resize, 250)
   }
 
   get width() {
@@ -61,7 +66,10 @@ class Watcher extends Component {
 
     this.resize()
     window.addEventListener('resize', this.debounceResize)
-    window.addEventListener(this.props.id, this.eventHandler)
+
+    if (this.props.id) {
+      window.addEventListener(this.props.id, this.eventHandler)
+    }
   }
 
   shouldComponentUpdate() {
@@ -72,10 +80,15 @@ class Watcher extends Component {
     window.removeEventListener(this.debounceResize)
   }
 
-  debounceResize = this.debounce(this.resize, 250)
-
   eventHandler = ({ detail }) => {
-    if (detail && detail.point) {
+    if (this.props.eventMethod) {
+      const point = eventMethod()
+      if (point) {
+        this.points.push(point)
+      } else {
+        this.applyStroke()
+      }
+    } else if (detail && detail.point) {
       this.points.push(detail.point)
       this.draw()
     } else {

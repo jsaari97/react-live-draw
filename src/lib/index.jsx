@@ -1,5 +1,5 @@
-import Drawer from './Drawer'
-import Watcher from './Drawer'
+import LiveDrawer from './Drawer'
+import LiveWatcher from './Watcher'
 
-export const ReactDrawer = Drawer
-export const ReactWatcher = Watcher
+export const Drawer = LiveDrawer
+export const Watcher = LiveWatcher

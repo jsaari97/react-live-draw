@@ -41,7 +41,7 @@ export const draw = function() {
   tempContext.stroke()
 }
 
-export const debounce = function(func, wait) {
+export const debounce = (func, wait) => {
   let timeout
   return () => {
     const later = () => {
@@ -89,8 +89,6 @@ export const resize = function() {
   this.context.drawImage(this.tempContext.canvas, 0, 0)
   this.tempContext.clearRect(0, 0, this.tempElement.current.width, this.tempElement.current.height)
 }
-
-export const debounceResize = debounce(resize, 100)
 
 export const clear = function() {
   this.context.clearRect(0, 0, this.tempElement.current.width, this.tempElement.current.height)

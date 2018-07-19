@@ -1,13 +1,12 @@
 import React from "react";
 import { render } from "react-dom";
-import { ReactDrawer } from "../../lib";
-import Watcher from "../lib/Watcher";
+import { Drawer, Watcher } from '../lib'
 
 class Demo extends React.Component {
   render() {
     return (
       <div>
-        <ReactDrawer
+        <Drawer
           id="canvas"
           ratio="4:3"
           style={{height: '40vh'}}

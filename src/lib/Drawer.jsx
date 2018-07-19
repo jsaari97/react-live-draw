@@ -4,7 +4,7 @@ import { draw, debounce, resize, applyStroke } from './utils'
 
 class Drawer extends Component {
   static propTypes = {
-    id: PropTypes.string.isRequired,
+    id: PropTypes.string,
     color: PropTypes.string,
     size: PropTypes.number,
     refreshRate: PropTypes.number,
@@ -17,6 +17,7 @@ class Drawer extends Component {
   }
 
   static defaultProps = {
+    id: null,
     color: '#333',
     size: 10,
     refreshRate: 2,
@@ -36,9 +37,10 @@ class Drawer extends Component {
     this.tempElement = React.createRef()
 
     this.draw = draw.bind(this)
-    this.debounce = debounce.bind(this)
     this.resize = resize.bind(this)
     this.applyStroke = applyStroke.bind(this)
+
+    this.debounceResize = debounce(this.resize, 250)
   }
 
   get width() {
@@ -73,30 +75,56 @@ class Drawer extends Component {
     window.removeEventListener(this.debounceResize)
   }
 
-  debounceResize = this.debounce(this.resize, 250)
+  debounce = (func, wait) => {
+    let timeout
+    return () => {
+      const later = () => {
+        timeout = null
+        func.apply()
+      }
+      clearTimeout(timeout)
+      timeout = setTimeout(later, wait)
+    }
+  }
 
   addPoint = (e) => {
+    // Get cursor coordinates from mouse or touch
     const pageX = e.pageX || e.changedTouches[0].pageX
     const pageY = e.pageY || e.changedTouches[0].pageY
-    const x = (pageX * this.pixelRatio) - this.container.current.offsetLeft
-    const y = (pageY * this.pixelRatio) - this.container.current.offsetTop
 
-    const point = { x, y }
+    // calculate XY coordinates taking account of container offset
+    const point = {
+      x: (pageX * this.pixelRatio) - this.container.current.offsetLeft,
+      y: (pageY * this.pixelRatio) - this.container.current.offsetTop,
+    }
 
+    // increment total point count
     this.count++
 
+    // check refresh interval if it should draw
     if (this.count % this.props.refreshRate === 0) {
       this.points.push(point)
       this.draw()
-      this.element.current.dispatchEvent(new CustomEvent(this.props.id, { bubbles: true, detail: { point } }))
 
+      // emit event if has id prop
+      if (this.props.id) {
+        this.element.current.dispatchEvent(new CustomEvent(this.props.id, { bubbles: true, detail: { point } }))
+      }
+
+      // run onDraw prop function
       if (this.props.onDraw) {
         this.props.onDraw(point)
       }
     } else if (this.count < 3) {
       this.points.push(point)
       this.draw()
-      this.element.current.dispatchEvent(new CustomEvent(this.props.id, { bubbles: true, detail: { point } }))
+
+      // emit event if has id prop
+      if (this.props.id) {
+        this.element.current.dispatchEvent(new CustomEvent(this.props.id, { bubbles: true, detail: { point } }))
+      }
+
+      // run onDraw prop function
       if (this.props.onDraw) {
         this.props.onDraw(point)
       }
@@ -106,6 +134,7 @@ class Drawer extends Component {
   onMouseDown = (e) => {
     this.drawing = true
     this.tempElement.current.addEventListener('mousemove', this.addPoint, false)
+    this.tempElement.current.addEventListener('touchmove', this.addPoint, false)
 
     if (this.props.onStart) {
       this.props.onStart()
@@ -116,33 +145,8 @@ class Drawer extends Component {
 
   onMouseUp = () => {
     if (this.drawing) {
-      this.tempElement.current.removeEventListener('mousemove', this.addPoint, false)
-      this.applyStroke()
-
-      if (this.props.onEnd) {
-        this.props.onEnd()
-      }
-
-      this.element.current.dispatchEvent(new Event(this.props.id, { bubbles: true }))
-
-      this.drawing = false
-    }
-  }
-
-  onTouchStart = (e) => {
-    this.drawing = true
-    this.tempElement.current.addEventListener('touchmove', this.addPoint, false)
-
-    if (this.props.onStart) {
-      this.props.onStart()
-    }
-
-    this.addPoint(e)
-  }
-
-  onTouchEnd = () => {
-    if (this.drawing) {
       this.tempElement.current.removeEventListener('touchmove', this.addPoint, false)
+      this.tempElement.current.removeEventListener('mousemove', this.addPoint, false)
       this.applyStroke()
 
       if (this.props.onEnd) {
@@ -172,8 +176,8 @@ class Drawer extends Component {
         />
         <canvas
           ref={this.tempElement}
-          onTouchStart={this.onTouchStart}
-          onTouchEnd={this.onTouchEnd}
+          onTouchStart={this.onMouseDown}
+          onTouchEnd={this.onMouseUp}
           onMouseDown={this.onMouseDown}
           onMouseUp={this.onMouseUp}
           onMouseLeave={this.onMouseUp}
